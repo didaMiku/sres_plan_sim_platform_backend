@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
 
 from app import db 
-from app.routers import auth 
+from app.routers import auth, schema
 
 # 应用实例
 app = FastAPI(
@@ -29,6 +29,7 @@ app.add_middleware(
 # db.init_db()
 
 app.include_router(auth.router, prefix="/api") # 注册登录路由：/api/auth/
+app.include_router(schema.router, prefix="/api") # 注册数据字典路由：/api/schema/types
 
 
 # 健康检查接口

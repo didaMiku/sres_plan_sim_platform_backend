@@ -107,3 +107,21 @@ def session_delete(con, token: str):
 def session_purge_expired(con):
     con.execute("DELETE FROM admin_session WHERE expires_at < ?", (now_text(),))
     con.commit()
+
+
+# ==================== 数据字典 ====================
+
+# 所有数据类型，按建表时的插入顺序
+def list_data_types(con):
+    return con.execute(
+        "SELECT code, name, description FROM data_type ORDER BY rowid"
+    ).fetchall()
+
+
+# 某一类的所有字段，按 sort_order 排
+def list_fields_by_type(con, type_code: str):
+    return con.execute(
+        "SELECT field_key, field_name, unit, required, sort_order "
+        "FROM field_dict WHERE type_code = ? ORDER BY sort_order",
+        (type_code,),
+    ).fetchall()

@@ -24,3 +24,22 @@ class LoginResponse(BaseModel):
     token: str       # 会话令牌（同时写进 Set-Cookie）
     expires_in: int  # 有效期秒数（8 小时 = 28800）
     admin: AdminInfo # 管理员信息
+
+
+# ==================== 数据字典 ====================
+
+# 一个数据库字段
+class FieldItem(BaseModel):
+    key: str             # 数据库真列名，如 wind_speed
+    name: str            # 中文名，如 风速
+    unit: str = ''       # 单位，如 m/s
+    required: bool = False
+    sort_order: int = 0
+
+
+# 一类数据 + 它包含的字段
+class DataTypeItem(BaseModel):
+    code: str                        # source / typical_day / simulation / tariff
+    name: str                        # 源荷气象数据
+    description: str | None = None   # 一行说明
+    fields: list[FieldItem] = Field(default_factory=list)
