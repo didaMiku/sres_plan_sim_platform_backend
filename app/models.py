@@ -43,3 +43,23 @@ class DataTypeItem(BaseModel):
     name: str                        # 源荷气象数据
     description: str | None = None   # 一行说明
     fields: list[FieldItem] = Field(default_factory=list)
+
+
+# ==================== 导入 ====================
+
+# 导入成功的返回
+class ImportResult(BaseModel):
+    row_count: int                   # 实际写入行数
+    dropped: int = 0                 # 因为必填为空被丢掉的行数
+    table: str                       # 写进了哪张表
+
+
+# 一条导入历史
+class ImportRecordItem(BaseModel):
+    id: int
+    type_code: str
+    original_filename: str
+    row_count: int
+    status: str
+    error_message: str | None = None
+    created_at: str

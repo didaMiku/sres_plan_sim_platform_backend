@@ -19,7 +19,9 @@ def now_text():
 
 # 开一个连接
 def connect():                                         
-    con = sqlite3.connect(DB_PATH)
+    # check_same_thread=False：FastAPI 的依赖可能在线程池线程创建连接、在事件循环线程使用
+    # 每个请求一个连接、不存在共用，关掉这个检查是安全的
+    con = sqlite3.connect(DB_PATH, check_same_thread=False)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON") # SQLite 默认不检查外键，必须显式打开
     return con
@@ -124,4 +126,13 @@ def list_fields_by_type(con, type_code: str):
         "SELECT field_key, field_name, unit, required, sort_order "
         "FROM field_dict WHERE type_code = ? ORDER BY sort_order",
         (type_code,),
+    ).fetchall()
+
+
+# 某个管理员的导入历史，最近的在前
+def list_import_records(con, admin_id: int, limit: int = 20):
+    return con.execute(
+        "SELECT id, type_code, original_filename, row_count, status, error_message, created_at "
+        "FROM import_record WHERE admin_id = ? ORDER BY id DESC LIMIT ?",
+        (admin_id, limit),
     ).fetchall()
