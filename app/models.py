@@ -100,3 +100,45 @@ class DashboardSummary(BaseModel):
     cards: list[CardItem]
     indicators: list[IndicatorItem]
     meta: dict
+
+
+# ==================== 仪表盘时序 ====================
+
+# 平衡图：供给各项加负荷
+class BalanceSeries(BaseModel):
+    wind: list[float]
+    pv: list[float]
+    discharge: list[float]
+    buy: list[float]
+    load: list[float]
+
+
+# 风电或光伏：实际出力加装机上限
+class RenewableSeries(BaseModel):
+    actual: list[float]
+    capacity: float
+
+
+# 储能：充电、放电、SOC
+class StorageSeries(BaseModel):
+    charge: list[float]
+    discharge: list[float]
+    soc: list[float]
+
+
+# 外网：购电、售电、分时电价
+class ExchangeSeries(BaseModel):
+    buy: list[float]
+    sell: list[float]
+    price: list[float]
+
+
+# 某一天的 24 点时序
+class DashboardDay(BaseModel):
+    date: str
+    hours: list[str]
+    balance: BalanceSeries
+    wind: RenewableSeries
+    pv: RenewableSeries
+    storage: StorageSeries
+    exchange: ExchangeSeries

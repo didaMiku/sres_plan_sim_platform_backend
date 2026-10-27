@@ -11,6 +11,7 @@ PV_CAP_MW = 80.0
 V_CUT_IN = 3.0
 V_RATED = 11.0
 PV_KWH_PER_GHI = PV_CAP_MW / 1000.0  # GHI 乘这个系数得到光伏 MW
+DEFAULT_DAY = "2026-01-24"           # 缺省展示的日期，储能动作最多
 
 
 def _load_frames(con):
@@ -137,6 +138,51 @@ def summary(con, project_id=None) -> dict:
             "data_end": str(sim["ts"].max()),
             "hours": int(len(sim)),
             # 默认展示的日期
-            "default_day": "2026-01-24",
+            "default_day": DEFAULT_DAY,
+        },
+    }
+
+
+def day(con, date=None) -> dict:
+    """某一天的 24 点时序，供平衡图、出力图、储能图、外网图共用。"""
+    day_text = date or DEFAULT_DAY
+    sim = pd.read_sql(
+        "SELECT * FROM t_simulation WHERE ts LIKE ? ORDER BY ts",
+        con,
+        params=(f"{day_text} %",),
+    )
+    if sim.empty:
+        raise ValueError(f"日期 {day_text} 没有运行数据")
+
+    tariff = pd.read_sql("SELECT hour, price FROM t_tariff ORDER BY hour", con)
+    sim["ts"] = pd.to_datetime(sim["ts"])
+    sim["hour"] = sim["ts"].dt.hour
+    sim = sim.merge(tariff, on="hour", how="left")
+
+    def col(name):
+        """转成保留三位小数的普通列表。"""
+        return [round(float(v), 3) for v in sim[name]]
+
+    return {
+        "date": day_text,
+        "hours": sim["ts"].dt.strftime("%H:%M").tolist(),
+        "balance": {
+            "wind": col("wind_power_mw"),
+            "pv": col("pv_power_mw"),
+            "discharge": col("battery_discharge_mw"),
+            "buy": col("grid_buy_mw"),
+            "load": col("load_mw"),
+        },
+        "wind": {"actual": col("wind_power_mw"), "capacity": WIND_CAP_MW},
+        "pv": {"actual": col("pv_power_mw"), "capacity": PV_CAP_MW},
+        "storage": {
+            "charge": col("battery_charge_mw"),
+            "discharge": col("battery_discharge_mw"),
+            "soc": col("soc"),
+        },
+        "exchange": {
+            "buy": col("grid_buy_mw"),
+            "sell": col("grid_sell_mw"),
+            "price": col("price"),
         },
     }
