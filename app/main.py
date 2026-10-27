@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
 
 from app import db 
-from app.routers import auth, imports, schema
+from app.routers import auth, dashboard, imports, schema
 
 # 应用实例
 app = FastAPI(
@@ -31,6 +31,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api") # 注册登录路由：/api/auth/
 app.include_router(schema.router, prefix="/api") # 注册数据字典路由：/api/schema/types
 app.include_router(imports.router, prefix="/api") # 注册导入路由：/api/imports
+app.include_router(dashboard.router, prefix="/api") # 注册仪表盘路由：/api/dashboard/summary
 
 
 # 健康检查接口

@@ -63,3 +63,40 @@ class ImportRecordItem(BaseModel):
     status: str
     error_message: str | None = None
     created_at: str
+
+
+# ==================== 仪表盘 ====================
+
+# 顶部 KPI
+class KpiItem(BaseModel):
+    key: str                 # 指标键，前端配色/下钻用
+    label: str               # 中文名
+    en: str = ""             # 英文副标题
+    value: float
+    unit: str = ""
+    caliber: str = ""        # 口径说明，前端 tooltip 展示
+
+
+# 底部指标卡
+class CardItem(BaseModel):
+    key: str
+    label: str
+    value: float | str       # 装机是数字，储能是 "20 MW / 80 MWh"
+    unit: str = ""
+
+
+# 底部指标条
+class IndicatorItem(BaseModel):
+    key: str
+    label: str
+    value: float
+    unit: str = "%"
+
+
+# 仪表盘汇总响应
+class DashboardSummary(BaseModel):
+    project: dict
+    kpi: list[KpiItem]
+    cards: list[CardItem]
+    indicators: list[IndicatorItem]
+    meta: dict
