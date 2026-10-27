@@ -142,3 +142,21 @@ class DashboardDay(BaseModel):
     pv: RenewableSeries
     storage: StorageSeries
     exchange: ExchangeSeries
+
+
+# ==================== 仪表盘 15 分钟时序 ====================
+
+# 15 分钟数据的一个点
+class Day15Point(BaseModel):
+    ts: str
+    pv: float
+    load: float
+    net: float
+
+
+# 某一天的 15 分钟时序，没有数据时 available 为 false
+class DashboardDay15(BaseModel):
+    date: str
+    resolution: str
+    available: bool
+    points: list[Day15Point]

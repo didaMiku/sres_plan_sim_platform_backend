@@ -186,3 +186,42 @@ def day(con, date=None) -> dict:
             "price": col("price"),
         },
     }
+
+
+def day_15(con, date=None) -> dict:
+    """某一天的 15 分钟时序，数据来自 t_typical_day。
+
+    没有数据时返回 available 为 false，不抛异常，前端显示空态。
+    """
+    if date is None:
+        row = con.execute("SELECT MIN(ts) FROM t_typical_day").fetchone()
+        date = row[0][:10] if row and row[0] else None
+    if date is None:
+        return {"date": "", "resolution": "15m", "available": False, "points": []}
+
+    td = pd.read_sql(
+        "SELECT * FROM t_typical_day WHERE ts LIKE ? ORDER BY ts",
+        con,
+        params=(f"{date} %",),
+    )
+    if td.empty:
+        return {"date": date, "resolution": "15m", "available": False, "points": []}
+
+    td["ts"] = pd.to_datetime(td["ts"])
+    points = []
+    for _, r in td.iterrows():
+        pv = round(float(r["pv_available_mw"]), 3)
+        load = round(float(r["load_mw"]), 3)
+        points.append({
+            "ts": r["ts"].strftime("%H:%M"),
+            "pv": pv,
+            "load": load,
+            "net": round(load - pv, 3),
+        })
+
+    return {
+        "date": date,
+        "resolution": "15m",
+        "available": True,
+        "points": points,
+    }
