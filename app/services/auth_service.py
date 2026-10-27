@@ -19,6 +19,8 @@ def login(conn, username: str, password: str):
     if admin["password"] != password:
         return None, "用户名或密码错误"
 
+    # 登录时顺手清理过期会话
+    db.session_purge_expired(conn)
     token = secrets.token_urlsafe(32)    
     db.session_create(conn, token, admin["id"], SESSION_HOURS)
 
