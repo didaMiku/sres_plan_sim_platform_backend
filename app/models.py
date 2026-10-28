@@ -186,3 +186,17 @@ class DashboardForecast(BaseModel):
     train_end: str
     train_rows: int
     placeholder: bool
+
+
+# ==================== 报告 ====================
+
+# 生成报告请求
+class ReportRequest(BaseModel):
+    title: str = "源网荷储一体化规划报告"
+    sections: list[str]
+
+
+# 生成的报告
+class ReportResponse(BaseModel):
+    filename: str
+    markdown: str
