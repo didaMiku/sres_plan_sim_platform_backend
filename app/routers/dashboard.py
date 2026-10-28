@@ -57,13 +57,14 @@ def day_15(
 @router.get(
     "/forecast",
     response_model=DashboardForecast,
-    summary="某一天的负荷预测",
+    summary="负荷、风电或光伏预测",
 )
 def forecast(
-    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="日期，缺省取测试集最后一天"),
+    target: str = Query("load", pattern="^(load|wind|pv)$", description="预测目标：load 负荷、wind 风电、pv 光伏"),
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="日期，缺省取数据最后一天"),
     con=Depends(get_db),
 ):
     try:
-        return dashboard_service.forecast(con, date)
+        return dashboard_service.forecast(con, date, target)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

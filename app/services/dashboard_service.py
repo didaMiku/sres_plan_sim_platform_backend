@@ -234,21 +234,34 @@ def day_15(con, date=None) -> dict:
     }
 
 
-def forecast(con, date=None) -> dict:
-    """负荷预测，用随机森林回归。
+# 三个预测目标：数据表、标签列、气象特征列、中文名
+FORECAST_TARGETS = {
+    "load": {"table": "t_source", "label": "load_mw", "weather": "temperature", "name": "负荷"},
+    "wind": {"table": "t_simulation", "label": "wind_power_mw", "weather": "wind_speed", "name": "风电出力"},
+    "pv": {"table": "t_simulation", "label": "pv_power_mw", "weather": "ghi", "name": "光伏出力"},
+}
+
+
+def forecast(con, date=None, target="load") -> dict:
+    """负荷、风电、光伏预测，用随机森林回归。
 
     用请求日期之前的历史数据训练，预测该日期当天的 24 点。
     日期之前不足 7 天数据时拒绝预测。
     """
-    src = pd.read_sql("SELECT ts, load_mw, temperature FROM t_source ORDER BY ts", con)
+    cfg = FORECAST_TARGETS.get(target)
+    if cfg is None:
+        raise ValueError("不支持的预测目标")
+
+    sql = f"SELECT ts, {cfg['label']} AS y, {cfg['weather']} AS weather FROM {cfg['table']} ORDER BY ts"
+    src = pd.read_sql(sql, con)
     src["ts"] = pd.to_datetime(src["ts"])
 
     df = src.copy()
     df["hour"] = df["ts"].dt.hour
     df["weekday"] = df["ts"].dt.weekday
     df["month"] = df["ts"].dt.month
-    # 昨日同一时刻的负荷，预测当天时这个值已知
-    df["lag24"] = df["load_mw"].shift(24)
+    # 昨日同一时刻的值，预测当天时这个值已知
+    df["lag24"] = df["y"].shift(24)
     df = df.dropna(subset=["lag24"]).reset_index(drop=True)
 
     day_text = date or df["ts"].dt.strftime("%Y-%m-%d").max()
@@ -256,26 +269,28 @@ def forecast(con, date=None) -> dict:
     day_end = day_start + pd.Timedelta(days=1)
 
     train = df[df["ts"] < day_start]
-    target = df[(df["ts"] >= day_start) & (df["ts"] < day_end)]
+    day_df = df[(df["ts"] >= day_start) & (df["ts"] < day_end)]
     if len(train) < 24 * 7:
         raise ValueError("该日期之前不足 7 天数据，无法训练")
-    if target.empty:
+    if day_df.empty:
         raise ValueError("该日期没有运行数据")
 
-    features = ["hour", "weekday", "month", "temperature", "lag24"]
+    features = ["hour", "weekday", "month", "weather", "lag24"]
     model = RandomForestRegressor(n_estimators=120, max_depth=12, random_state=0, n_jobs=-1)
-    model.fit(train[features].to_numpy(), train["load_mw"].to_numpy())
-    pred = model.predict(target[features].to_numpy())
+    model.fit(train[features].to_numpy(), train["y"].to_numpy())
+    pred = model.predict(day_df[features].to_numpy())
 
-    actual = target["load_mw"].to_numpy()
+    actual = day_df["y"].to_numpy()
     mae = mean_absolute_error(actual, pred)
     rmse = mean_squared_error(actual, pred) ** 0.5
     mape = mean_absolute_percentage_error(actual, pred) * 100
     r2 = r2_score(actual, pred)
 
     return {
+        "target": target,
+        "target_name": cfg["name"],
         "date": day_text,
-        "hours": target["ts"].dt.strftime("%H:%M").tolist(),
+        "hours": day_df["ts"].dt.strftime("%H:%M").tolist(),
         "actual": [round(float(v), 3) for v in actual],
         "predicted": [round(float(v), 3) for v in pred],
         "model": "RandomForestRegressor",

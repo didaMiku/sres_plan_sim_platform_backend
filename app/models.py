@@ -172,8 +172,10 @@ class ForecastMetrics(BaseModel):
     r2: float
 
 
-# 某一天的负荷预测结果
+# 某一天的负荷或出力预测结果
 class DashboardForecast(BaseModel):
+    target: str
+    target_name: str
     date: str
     hours: list[str]
     actual: list[float]
