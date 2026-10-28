@@ -160,3 +160,27 @@ class DashboardDay15(BaseModel):
     resolution: str
     available: bool
     points: list[Day15Point]
+
+
+# ==================== 负荷预测 ====================
+
+# 测试集上的误差指标
+class ForecastMetrics(BaseModel):
+    mae: float
+    rmse: float
+    mape: float
+    r2: float
+
+
+# 某一天的负荷预测结果
+class DashboardForecast(BaseModel):
+    date: str
+    hours: list[str]
+    actual: list[float]
+    predicted: list[float]
+    model: str
+    metrics: ForecastMetrics
+    train_start: str
+    train_end: str
+    train_rows: int
+    placeholder: bool

@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db import get_db
-from app.models import DashboardDay, DashboardDay15, DashboardSummary
+from app.models import DashboardDay, DashboardDay15, DashboardForecast, DashboardSummary
 from app.services import dashboard_service
 
 router = APIRouter(prefix="/dashboard", tags=["仪表盘"])
@@ -52,3 +52,18 @@ def day_15(
     con=Depends(get_db),
 ):
     return dashboard_service.day_15(con, date)
+
+
+@router.get(
+    "/forecast",
+    response_model=DashboardForecast,
+    summary="某一天的负荷预测",
+)
+def forecast(
+    date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="日期，缺省取测试集最后一天"),
+    con=Depends(get_db),
+):
+    try:
+        return dashboard_service.forecast(con, date)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

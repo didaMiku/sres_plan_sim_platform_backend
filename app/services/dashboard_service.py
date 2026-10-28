@@ -4,6 +4,13 @@
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+    r2_score,
+)
 
 # 设备参数来自 t_param 和 02 文件，集中放这里
 WIND_CAP_MW = 50.0
@@ -224,4 +231,62 @@ def day_15(con, date=None) -> dict:
         "resolution": "15m",
         "available": True,
         "points": points,
+    }
+
+
+def forecast(con, date=None) -> dict:
+    """负荷预测，用随机森林回归。
+
+    用请求日期之前的历史数据训练，预测该日期当天的 24 点。
+    日期之前不足 7 天数据时拒绝预测。
+    """
+    src = pd.read_sql("SELECT ts, load_mw, temperature FROM t_source ORDER BY ts", con)
+    src["ts"] = pd.to_datetime(src["ts"])
+
+    df = src.copy()
+    df["hour"] = df["ts"].dt.hour
+    df["weekday"] = df["ts"].dt.weekday
+    df["month"] = df["ts"].dt.month
+    # 昨日同一时刻的负荷，预测当天时这个值已知
+    df["lag24"] = df["load_mw"].shift(24)
+    df = df.dropna(subset=["lag24"]).reset_index(drop=True)
+
+    day_text = date or df["ts"].dt.strftime("%Y-%m-%d").max()
+    day_start = pd.Timestamp(day_text)
+    day_end = day_start + pd.Timedelta(days=1)
+
+    train = df[df["ts"] < day_start]
+    target = df[(df["ts"] >= day_start) & (df["ts"] < day_end)]
+    if len(train) < 24 * 7:
+        raise ValueError("该日期之前不足 7 天数据，无法训练")
+    if target.empty:
+        raise ValueError("该日期没有运行数据")
+
+    features = ["hour", "weekday", "month", "temperature", "lag24"]
+    model = RandomForestRegressor(n_estimators=120, max_depth=12, random_state=0, n_jobs=-1)
+    model.fit(train[features].to_numpy(), train["load_mw"].to_numpy())
+    pred = model.predict(target[features].to_numpy())
+
+    actual = target["load_mw"].to_numpy()
+    mae = mean_absolute_error(actual, pred)
+    rmse = mean_squared_error(actual, pred) ** 0.5
+    mape = mean_absolute_percentage_error(actual, pred) * 100
+    r2 = r2_score(actual, pred)
+
+    return {
+        "date": day_text,
+        "hours": target["ts"].dt.strftime("%H:%M").tolist(),
+        "actual": [round(float(v), 3) for v in actual],
+        "predicted": [round(float(v), 3) for v in pred],
+        "model": "RandomForestRegressor",
+        "metrics": {
+            "mae": round(float(mae), 3),
+            "rmse": round(float(rmse), 3),
+            "mape": round(float(mape), 2),
+            "r2": round(float(r2), 3),
+        },
+        "train_start": str(train["ts"].min()),
+        "train_end": str(train["ts"].max()),
+        "train_rows": int(len(train)),
+        "placeholder": False,
     }
