@@ -42,7 +42,7 @@ def _simulate(x, data):
     p_wind = np.where(v < V_CUT_IN, 0.0,
                       np.where(v >= V_RATED, wind_cap,
                                wind_cap * ((v - V_CUT_IN) / (V_RATED - V_CUT_IN)) ** 3))
-    p_pv = data["ghi"] / 1000.0 * pv_cap
+    p_pv = data["ghi"] / 1000.0 * pv_cap * 0.82
     p_re = p_wind + p_pv
     load = data["load"]
     price = data["price"]

@@ -17,7 +17,8 @@ WIND_CAP_MW = 50.0
 PV_CAP_MW = 80.0
 V_CUT_IN = 3.0
 V_RATED = 11.0
-PV_KWH_PER_GHI = PV_CAP_MW / 1000.0  # GHI 乘这个系数得到光伏 MW
+PV_EFF = 0.82                        # 光伏系统效率
+PV_KWH_PER_GHI = PV_CAP_MW / 1000.0 * PV_EFF  # GHI 乘这个系数得到光伏 MW
 DEFAULT_DAY = "2026-01-24"           # 缺省展示的日期，储能动作最多
 
 

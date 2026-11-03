@@ -192,7 +192,7 @@ def _consume_rate(src):
 
     v = src["wind_speed"].to_numpy(dtype=float)
     p_wind = np.where(v < 3, 0.0, np.where(v >= 11, 50.0, 50.0 * ((v - 3) / 8) ** 3))
-    p_pv = src["ghi"].to_numpy(dtype=float) / 1000 * 80.0
+    p_pv = src["ghi"].to_numpy(dtype=float) / 1000 * 80.0 * 0.82
     avail = p_wind + p_pv
     if avail.sum() == 0:
         return 0.0
