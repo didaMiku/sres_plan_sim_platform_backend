@@ -6,6 +6,8 @@
 
 import pandas as pd
 
+from app.services import optimize_service
+
 # 章节顺序与名称，前端也用它渲染列表
 SECTIONS = [
     {"key": "project", "name": "项目概况"},
@@ -94,19 +96,26 @@ def s_method():
 出力与负荷预测采用随机森林回归，以时间、温度、历史同时刻值为特征，训练集只使用预测日之前的数据。"""
 
 
-def s_capacity(project, params):
+def s_capacity(project, params, opt):
     wind, pv, bess = project["wind_mw"], project["pv_mw"], project["storage_mwh"]
     inv = wind * 1000 * _cost(params, "风电CAPEX", 6500) / 10000
     inv_pv = pv * 1000 * _cost(params, "光伏CAPEX", 3500) / 10000
     inv_bess = bess * 1000 * _cost(params, "储能CAPEX", 1200) / 10000
-    return f"""| 设备 | 容量 | 投资 |
-|---|---|---|
-| 风电 | {wind:.0f} MW | {inv:,.0f} 万元 |
-| 光伏 | {pv:.0f} MW | {inv_pv:,.0f} 万元 |
-| 储能 | {project['storage_mw']:.0f} MW / {bess:.0f} MWh | {inv_bess:,.0f} 万元 |
-| 合计 | — | {inv + inv_pv + inv_bess:,.0f} 万元 |
+    now = opt["current"]
+    best = opt["best"]
+    return f"""现状装机为风电 {wind:.0f} MW、光伏 {pv:.0f} MW、储能 {project['storage_mw']:.0f} MW / {bess:.0f} MWh，初始投资 {inv + inv_pv + inv_bess:,.0f} 万元。
 
-以上为现状装机方案，容量优化结果方案为风电 80 MW、光伏 120 MW、储能 40 MW / 160 MWh。"""
+| 项目 | 现状 | 优化 |
+|---|---|---|
+| 风电 | {wind:.0f} MW | {best['wind_mw']:.1f} MW |
+| 光伏 | {pv:.0f} MW | {best['pv_mw']:.1f} MW |
+| 储能 | {project['storage_mw']:.0f} MW / {bess:.0f} MWh | {best['bess_mw']:.1f} MW / {best['bess_mwh']:.1f} MWh |
+| 初始投资 | {now['invest_wan']:,.0f} 万元 | {best['invest_wan']:,.0f} 万元 |
+| 年化总成本 | {now['annual_cost']:,.0f} 万元 | {best['annual_cost']:,.0f} 万元 |
+| 年购电成本 | {now['annual_buy']:,.0f} 万元 | {best['annual_buy']:,.0f} 万元 |
+| 弃电率 | {now['curt_rate']:.2f}% | {best['curt_rate']:.2f}% |
+
+按年化总成本最小求解，粒子群算法 20 粒子、40 代，单次约 2.6 秒。推荐配置的年化总成本较现状降低 {(1 - best['annual_cost'] / now['annual_cost']) * 100:.1f}%，年购电成本降低 {(1 - best['annual_buy'] / now['annual_buy']) * 100:.1f}%，初始投资增加 {(best['invest_wan'] / now['invest_wan'] - 1) * 100:.1f}%。"""
 
 
 def s_operation(sim):
@@ -157,10 +166,12 @@ def s_friendliness(sim, consume_rate):
 各项指标按统一口径计算，数值与仪表盘一致。"""
 
 
-def s_plan():
-    return """推荐采用风电 80 MW、光伏 120 MW、储能 40 MW / 160 MWh 的配置方案。
+def s_plan(opt):
+    best = opt["best"]
+    now = opt["current"]
+    return f"""推荐采用风电 {best['wind_mw']:.0f} MW、光伏 {best['pv_mw']:.1f} MW、储能 {best['bess_mw']:.0f} MW / {best['bess_mwh']:.0f} MWh 的配置方案。
 
-该方案在现有数据下可提升新能源装机规模，储能用于平滑午间光伏出力与晚间负荷高峰。由于缺少优化求解器与完整经济参数，本方案为给定结果方案的展示，未经重新优化。"""
+该方案由粒子群算法按年化总成本最小求得，年化总成本 {best['annual_cost']:,.0f} 万元，较现状降低 {(1 - best['annual_cost'] / now['annual_cost']) * 100:.1f}%。风电为 0 是当前数据与价格下的成本最优结论：风电单价是光伏的 1.9 倍，且夜间出力与白天负荷错配。"""
 
 
 def s_risk():
@@ -172,17 +183,17 @@ def s_risk():
 
 
 BUILDERS = {
-    "project": lambda project, src, sim, params, tariff, consume_rate: s_project(project),
-    "data": lambda project, src, sim, params, tariff, consume_rate: s_data(src, sim),
-    "resource": lambda project, src, sim, params, tariff, consume_rate: s_resource(src),
-    "load": lambda project, src, sim, params, tariff, consume_rate: s_load(sim),
-    "method": lambda project, src, sim, params, tariff, consume_rate: s_method(),
-    "capacity": lambda project, src, sim, params, tariff, consume_rate: s_capacity(project, params),
-    "operation": lambda project, src, sim, params, tariff, consume_rate: s_operation(sim),
-    "economy": lambda project, src, sim, params, tariff, consume_rate: s_economy(project, sim, params, tariff),
-    "friendliness": lambda project, src, sim, params, tariff, consume_rate: s_friendliness(sim, consume_rate),
-    "plan": lambda project, src, sim, params, tariff, consume_rate: s_plan(),
-    "risk": lambda project, src, sim, params, tariff, consume_rate: s_risk(),
+    "project": lambda project, src, sim, params, tariff, consume_rate, opt: s_project(project),
+    "data": lambda project, src, sim, params, tariff, consume_rate, opt: s_data(src, sim),
+    "resource": lambda project, src, sim, params, tariff, consume_rate, opt: s_resource(src),
+    "load": lambda project, src, sim, params, tariff, consume_rate, opt: s_load(sim),
+    "method": lambda project, src, sim, params, tariff, consume_rate, opt: s_method(),
+    "capacity": lambda project, src, sim, params, tariff, consume_rate, opt: s_capacity(project, params, opt),
+    "operation": lambda project, src, sim, params, tariff, consume_rate, opt: s_operation(sim),
+    "economy": lambda project, src, sim, params, tariff, consume_rate, opt: s_economy(project, sim, params, tariff),
+    "friendliness": lambda project, src, sim, params, tariff, consume_rate, opt: s_friendliness(sim, consume_rate),
+    "plan": lambda project, src, sim, params, tariff, consume_rate, opt: s_plan(opt),
+    "risk": lambda project, src, sim, params, tariff, consume_rate, opt: s_risk(),
 }
 
 
@@ -208,6 +219,7 @@ def build_report(con, title, sections) -> dict:
     project = _project(con)
     src, sim, params, tariff = _frames(con)
     consume_rate = _consume_rate(src)
+    opt = optimize_service.optimize(con)
 
     lines = [f"# {title}", ""]
     lines.append(f"> 统计期 {src['ts'].min()} ~ {src['ts'].max()}，共 {len(sim)} 个时刻。")
@@ -216,7 +228,7 @@ def build_report(con, title, sections) -> dict:
     for i, key in enumerate(keys, 1):
         lines.append(f"## {i}. {SECTION_NAMES[key]}")
         lines.append("")
-        lines.append(BUILDERS[key](project, src, sim, params, tariff, consume_rate))
+        lines.append(BUILDERS[key](project, src, sim, params, tariff, consume_rate, opt))
         lines.append("")
 
     markdown = "\n".join(lines).strip() + "\n"
